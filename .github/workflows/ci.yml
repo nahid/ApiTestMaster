@@ -12,7 +12,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        dotnet-version: ['8.0.x']
+        dotnet-version: ['8.0.300']
 
     runs-on: ${{ matrix.os }}
     
@@ -31,16 +31,43 @@ jobs:
       run: dotnet build --no-restore
     
     - name: Run Init Command
-      run: dotnet run init --name "Test API Project" --base-url "https://jsonplaceholder.typicode.com" --force
+      run: dotnet run init --project-name "CI Test Project" --base-url "https://jsonplaceholder.typicode.com" --non-interactive --force --create-samples true --default-env-name "TestEnv"
       
     - name: Run GET Tests
-      run: dotnet run run apis/sample-api.json
+      run: dotnet run run sample-get-request.json --env TestEnv # Updated sample name from InitCommand
 
     - name: Run POST Tests
-      run: dotnet run run apis/sample-post.json
+      run: dotnet run run sample-post-request.json --env TestEnv # Updated sample name from InitCommand
+
+    - name: Test Non-Interactive Create Request
+      run: dotnet run create request --file "ci_test_req" --name "CI Get Test" --method GET --uri "http://localhost:5000/users" --non-interactive --force --test "Status OK:StatusCode::200"
+
+    - name: Verify Created Request File
+      run: |
+        cat .apify/apis/ci_test_req.json
+        if [ ! -f .apify/apis/ci_test_req.json ]; then exit 1; fi
+        grep "CI Get Test" .apify/apis/ci_test_req.json || exit 1
+        grep "StatusCode" .apify/apis/ci_test_req.json || exit 1
+      shell: bash # Ensure bash for cross-platform consistency
+
+    - name: Create Sample Mock Definition File for CI
+      run: |
+        echo '{ "Name": "CI Test Mock", "Endpoint": "/ci-mock", "Method": "GET", "StatusCode": 200, "ContentType": "application/json", "Response": { "message": "CI Mock Success" } }' > ci_mock_def.json
+      shell: bash
+
+    - name: Test Non-Interactive Create Mock
+      run: dotnet run create mock --file "ci_test_mock" --definition-file "./ci_mock_def.json" --non-interactive --force
+
+    - name: Verify Created Mock File
+      run: |
+        cat .apify/mocks/ci_test_mock.mock.json
+        if [ ! -f .apify/mocks/ci_test_mock.mock.json ]; then exit 1; fi
+        grep "CI Test Mock" .apify/mocks/ci_test_mock.mock.json || exit 1
+        grep "CI Mock Success" .apify/mocks/ci_test_mock.mock.json || exit 1
+      shell: bash
       
     - name: Run All Tests Command
-      run: dotnet run tests
+      run: dotnet run tests --env TestEnv # Added --env TestEnv
       
     - name: List environments
       run: dotnet run list-env
@@ -48,12 +75,15 @@ jobs:
     - name: Test Mock Server (Linux/macOS only)
       if: runner.os != 'Windows'
       run: |
-        # Start mock server in background
+        # Start mock server in background using default port from config or 8080
+        # The new init creates sample-user.mock.json which has /api/users/:id
         dotnet run mock-server --port 5000 &
         # Give server time to start
-        sleep 2
-        # Test default response for products search
-        curl -s "http://localhost:5000/products/search" | grep "Programming Guide" || exit 1
+        sleep 5 # Increased sleep time
+        # Test specific user mock from samples (assuming ID 1 is defined in sample-user.mock.json)
+        curl -s "http://localhost:5000/api/users/1" | grep "John Doe (Mock)" || exit 1
+        # Test the CI created mock
+        curl -s "http://localhost:5000/ci-mock" | grep "CI Mock Success" || exit 1
         # Kill background process
         kill %1
       
@@ -63,6 +93,10 @@ jobs:
         # Start mock server in background
         start /b dotnet run mock-server --port 5000
         # Give server time to start
-        timeout /t 2
-        # Test default response - check if server is running
-        curl -s "http://localhost:5000/products/search"
+        timeout /t 5 # Increased sleep time
+        # Test specific user mock from samples
+        curl -s "http://localhost:5000/api/users/1" | findstr "John Doe (Mock)" || exit /b 1
+        # Test the CI created mock
+        curl -s "http://localhost:5000/ci-mock" | findstr "CI Mock Success" || exit /b 1
+        # It's harder to reliably kill background processes on Windows in GH Actions,
+        # so we'll let it terminate when the job ends.

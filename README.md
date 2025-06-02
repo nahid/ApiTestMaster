@@ -34,7 +34,7 @@ A powerful C# CLI application for comprehensive API testing and mocking, enablin
 
 ```bash
 # Clone the repository
-git clone https://github.com/nahid/apify.git # Replace with actual URL
+git clone https://github.com/yourusername/apify.git # Replace with actual URL
 cd apify
 
 # Build the project

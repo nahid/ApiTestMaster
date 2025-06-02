@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Newtonsoft.Json;
+// using Apify.Models; // Not strictly needed if MockServerConfig is in the same namespace, but good for clarity
 
 namespace Apify.Models
 {
@@ -12,16 +13,19 @@ namespace Apify.Models
             Environments = new List<TestEnvironment>();
             DefaultEnvironment = "Development";
             Variables = new Dictionary<string, string>();
+            // MockServer can be null by default, InitCommand will populate it.
+            MockServer = null;
         }
 
         // Parameterized constructor for programmatic creation
-        public TestEnvironmentConfig(string name, string? description, List<TestEnvironment> environments, string? defaultEnvironment, Dictionary<string, string>? variables = null)
+        public TestEnvironmentConfig(string name, string? description, List<TestEnvironment> environments, string? defaultEnvironment, Dictionary<string, string>? variables = null, MockServerConfig? mockServer = null)
         {
             Name = name ?? "Default";
             Description = description;
             Environments = environments ?? new List<TestEnvironment>();
             DefaultEnvironment = defaultEnvironment ?? "Development";
             Variables = variables ?? new Dictionary<string, string>();
+            MockServer = mockServer;
         }
 
         [JsonProperty("Name")]
@@ -38,5 +42,8 @@ namespace Apify.Models
         
         [JsonProperty("Variables")]
         public Dictionary<string, string> Variables { get; set; }
+
+        [JsonProperty("MockServer")]
+        public MockServerConfig? MockServer { get; set; }
     }
 }
